@@ -1,8 +1,14 @@
 package com.amazon.ata.executorservice.checker;
 
+import com.amazon.ata.executorservice.coralgenerated.customer.GetCustomerDevicesRequest;
+import com.amazon.ata.executorservice.coralgenerated.customer.GetCustomerDevicesResponse;
 import com.amazon.ata.executorservice.coralgenerated.devicecommunication.RingDeviceFirmwareVersion;
 import com.amazon.ata.executorservice.customer.CustomerService;
 import com.amazon.ata.executorservice.devicecommunication.RingDeviceCommunicatorService;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Utility object for checking version status of devices, and updating
@@ -36,7 +42,16 @@ public class DeviceChecker {
      */
     public int checkDevicesIteratively(final String customerId, RingDeviceFirmwareVersion version) {
         // PARTICIPANTS: implement in Phase 2
-        return 0;
+        GetCustomerDevicesRequest request =  GetCustomerDevicesRequest.builder()
+                .withCustomerId(customerId)
+                .build();
+        GetCustomerDevicesResponse response = this.customerService.getCustomerDevices(request);
+        List<String> deviceIds = getDeviceIds(customerId);
+        for (String deviceId : deviceIds) {
+            DeviceCheckTask task = new DeviceCheckTask(this, deviceId, version);
+            task.run();
+        }
+        return deviceIds.size();
     }
 
     /**
@@ -47,7 +62,15 @@ public class DeviceChecker {
      */
     public int checkDevicesConcurrently(final String customerId, RingDeviceFirmwareVersion version) {
         // PARTICIPANTS: implement in Phase 3
-        return 0;
+        List<String> deviceIds = getDeviceIds(customerId);
+        ExecutorService executor = Executors.newCachedThreadPool();
+        for (String deviceId : deviceIds) {
+            DeviceCheckTask task = new DeviceCheckTask(this, deviceId, version);
+//            task.run();
+            executor.submit(task);
+        }
+        executor.shutdown();
+        return deviceIds.size();
     }
 
     /**
@@ -67,5 +90,13 @@ public class DeviceChecker {
 
     public RingDeviceCommunicatorService getRingDeviceCommunicatorService() {
         return ringDeviceCommunicatorService;
+    }
+
+    private List<String> getDeviceIds(String customerId) {
+        GetCustomerDevicesRequest request =  GetCustomerDevicesRequest.builder()
+                .withCustomerId(customerId)
+                .build();
+        GetCustomerDevicesResponse response = this.customerService.getCustomerDevices(request);
+        return response.getDeviceIds();
     }
 }
