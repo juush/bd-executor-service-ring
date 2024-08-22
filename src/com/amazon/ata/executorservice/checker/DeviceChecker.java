@@ -3,6 +3,7 @@ package com.amazon.ata.executorservice.checker;
 import com.amazon.ata.executorservice.coralgenerated.customer.GetCustomerDevicesRequest;
 import com.amazon.ata.executorservice.coralgenerated.customer.GetCustomerDevicesResponse;
 import com.amazon.ata.executorservice.coralgenerated.devicecommunication.RingDeviceFirmwareVersion;
+import com.amazon.ata.executorservice.coralgenerated.devicecommunication.UpdateDeviceFirmwareRequest;
 import com.amazon.ata.executorservice.customer.CustomerService;
 import com.amazon.ata.executorservice.devicecommunication.RingDeviceCommunicatorService;
 
@@ -80,7 +81,11 @@ public class DeviceChecker {
      */
     public void updateDevice(final String deviceId, final RingDeviceFirmwareVersion version) {
         System.out.println(String.format("[DeviceChecker] Updating device %s to version %s", deviceId, version));
-
+        UpdateDeviceFirmwareRequest request = UpdateDeviceFirmwareRequest.builder()
+                .withDeviceId(deviceId)
+                .withVersion(version)
+                .build();
+        Boolean success = this.ringDeviceCommunicatorService.updateDeviceFirmware(request).isWasSuccessful();
         // PARTICIPANTS: add remaining implementation here in Phase 4
     }
 
