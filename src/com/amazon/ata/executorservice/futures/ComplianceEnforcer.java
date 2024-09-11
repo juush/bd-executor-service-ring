@@ -60,7 +60,7 @@ public class ComplianceEnforcer {
     public List<String> updateDevices(List<String> nonCompliantDeviceIds, RingDeviceFirmwareVersion latest) {
 
         // Update all the devices and keep track of their update responses.
-        List<UpdateDeviceFirmwareResponse> updateStatuses = triggere.printStackTrace();Updates(nonCompliantDeviceIds, latest);
+        List<UpdateDeviceFirmwareResponse> updateStatuses = triggerUpdates(nonCompliantDeviceIds, latest);
 
         // Collect all the unsuccessful device IDs.
         List<String> unsuccessfulDevices = collectUnsuccessfulUpdates(updateStatuses);
@@ -84,13 +84,28 @@ public class ComplianceEnforcer {
      */
     private List<RingDeviceSystemInfo> getInfoForDevices(List<String> deviceIds) {
         List<RingDeviceSystemInfo> deviceInfo = new ArrayList<>();
+        List<Future<RingDeviceSystemInfo>> futures = new ArrayList<>();
+        ExecutorService executor = Executors.newCachedThreadPool();
+
         for (String deviceId : deviceIds) {
             GetDeviceSystemInfoRequest versionRequest = GetDeviceSystemInfoRequest.builder()
                     .withDeviceId(deviceId)
                     .build();
-            GetDeviceSystemInfoResponse infoResponse = ringClient.getDeviceSystemInfo(versionRequest);
-            deviceInfo.add(infoResponse.getSystemInfo());
+            futures.add(executor.submit(() ->
+                    ringClient.getDeviceSystemInfo(versionRequest).getSystemInfo()
+            ));
         }
+        executor.shutdown();
+        for (Future<RingDeviceSystemInfo> future : futures) {
+            try {
+                deviceInfo.add(future.get());
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+        // Return the list of device info. May be empty. Never null
         return deviceInfo;
     }
 
@@ -114,30 +129,32 @@ public class ComplianceEnforcer {
      */
     private List<UpdateDeviceFirmwareResponse> triggerUpdates(List<String> nonCompliantDeviceIds,
                                                               RingDeviceFirmwareVersion latest) {
-        ExecutorService executorService = Executors.newCachedThreadPool();
         List<UpdateDeviceFirmwareResponse> updateStatuses = new ArrayList<>();
+        ExecutorService executor = Executors.newCachedThreadPool();
         List<Future<UpdateDeviceFirmwareResponse>> futures = new ArrayList<>();
+
         for (String deviceId : nonCompliantDeviceIds) {
             UpdateDeviceFirmwareRequest updateRequest = UpdateDeviceFirmwareRequest.builder()
                     .withDeviceId(deviceId)
                     .withVersion(latest)
                     .build();
             UpdateRingTask updateTask = new UpdateRingTask(ringClient, updateRequest);
-
-            Future<UpdateDeviceFirmwareResponse> future = executorService.submit(updateTask);
+            Future<UpdateDeviceFirmwareResponse> future = executor.submit(updateTask);
             futures.add(future);
-//            UpdateDeviceFirmwareResponse updateResponse = ringClient.updateDeviceFirmware(updateRequest);
-  //          updateStatuses.add(updateResponse);
+           // UpdateDeviceFirmwareResponse updateResponse = ringClient.updateDeviceFirmware(updateRequest);
+            //updateStatuses.add(updateResponse);
         }
-        for (Future<UpdateDeviceFirmwareResponse> futureResponse : futures) {
+        executor.shutdown();
+        for (Future<UpdateDeviceFirmwareResponse> future : futures) {
             try {
-                updateStatuses.add(futureResponse.get());
+                updateStatuses.add(future.get());
             } catch (InterruptedException e) {
                 e.printStackTrace();
             } catch (ExecutionException e) {
                 e.printStackTrace();
             }
         }
+        // Return the list of update statuses. May be empty. Never null
         return updateStatuses;
     }
 
